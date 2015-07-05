@@ -67,6 +67,7 @@ type Machine struct {
 	Flag       Flag
 	BootOrder  []string // max 4 slots, each in {none|floppy|dvd|disk|net}
 	Shares     SharedFolders
+	PFRules    map[string]PFRule
 }
 
 // Refresh reloads the machine information.
@@ -236,6 +237,9 @@ func GetMachine(id string) (*Machine, error) {
 			m.BaseFolder = filepath.Dir(val)
 		default:
 			if err := m.Shares.parseProperty(key, val); err != nil {
+				return nil, err
+			}
+			if err := m.parseForwarading(key, val); err != nil {
 				return nil, err
 			}
 		}
