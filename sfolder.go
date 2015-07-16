@@ -17,7 +17,7 @@ type SharedFolders struct {
 }
 
 var (
-	reSharedFolder = regexp.MustCompile(`SharedFolder(Name|Path)MachineMapping([0-9]+)$`)
+	reSharedFolder = regexp.MustCompile(`SharedFolder(Name|Path)(Machine|Transient)Mapping([0-9]+)$`)
 )
 
 // parse property key value as parsed from the output of VBoxManage showvminfo --machinereadable
@@ -40,7 +40,8 @@ func (s *SharedFolders) parseProperty(key, value string) error {
 		s.folders = make(map[string]*SharedFolder)
 	}
 
-	action, id := match[1], match[2]
+	action := match[1]
+	id := match[2] + match[3]
 
 	sf := s.folders[id]
 	if sf == nil {
@@ -73,10 +74,25 @@ func (s *SharedFolders) List() []SharedFolder {
 	return list
 }
 
+func (m *Machine) SharedFolderAddMachine(name, path string) error {
+	return vbmParseErr([]string{"sharedfolder", "add", m.Name, "--name", name, "--hostpath", path}...)
+}
+
+func (m *Machine) SharedFolderAddTransient(name, path string) error {
+	return vbmParseErr([]string{"sharedfolder", "add", m.Name, "--name", name, "--hostpath", path, "--transient"}...)
+}
+
 func (m *Machine) SharedFolderAdd(name, path string) error {
-	return vbm([]string{"sharedfolder", "add", m.Name, "--name", name, "--hostpath", path}...)
+	if m.State == Poweroff || m.State == Aborted {
+		return m.SharedFolderAddMachine(name, path)
+	}
+	return m.SharedFolderAddTransient(name, path)
 }
 
 func (m *Machine) SharedFolderRemove(name string) error {
-	return vbm([]string{"sharedfolder", "remove", m.Name, "--name", name}...)
+	params := []string{"sharedfolder", "remove", m.Name, "--name", name, "--transient"}
+	if m.State == Poweroff || m.State == Aborted {
+		params = params[:len(params)-1]
+	}
+	return vbmParseErr(params...)
 }
