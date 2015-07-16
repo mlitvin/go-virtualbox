@@ -33,6 +33,7 @@ var (
 	reVMInfoLine      = regexp.MustCompile(`(?:"(.+)"|(.+))=(?:"(.*)"|(.*))`)
 	reColonLine       = regexp.MustCompile(`(.+):\s+(.*)`)
 	reMachineNotFound = regexp.MustCompile(`Could not find a registered machine named '(.+)'`)
+	reErrorMessage    = regexp.MustCompile(`VBoxManage: error: (.*)`)
 )
 
 var (
@@ -67,6 +68,11 @@ func vbmOutErr(args ...string) (string, string, error) {
 	if err != nil {
 		if ee, ok := err.(*exec.Error); ok && ee == exec.ErrNotFound {
 			err = ErrVBMNotFound
+		}
+		if _, ok := err.(*exec.ExitError); ok {
+			if res := reErrorMessage.FindStringSubmatch(stderr.String()); res != nil {
+				err = errors.New(res[1])
+			}
 		}
 	}
 	return stdout.String(), stderr.String(), err
