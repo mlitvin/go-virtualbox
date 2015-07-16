@@ -99,7 +99,7 @@ func logErr(msg string) {
 	case msg == "":
 		return
 	case LogOut != nil:
-		LogOut(msg)
+		LogErr(msg)
 	case Log != nil:
 		Log("StdErr: " + msg)
 	case Verbose:
