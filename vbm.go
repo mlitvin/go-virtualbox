@@ -47,6 +47,14 @@ func vbm(args ...string) error {
 	return err
 }
 
+func vbmParseErr(args ...string) error {
+	_, stderr, err := vbmOutErr(args...)
+	if err != nil {
+		return err
+	}
+	return extractErr(stderr)
+}
+
 func vbmOut(args ...string) (string, error) {
 	out, _, err := vbmOutErr(args...)
 	return out, err
@@ -70,12 +78,19 @@ func vbmOutErr(args ...string) (string, string, error) {
 			err = ErrVBMNotFound
 		}
 		if _, ok := err.(*exec.ExitError); ok {
-			if res := reErrorMessage.FindStringSubmatch(stderr.String()); res != nil {
-				err = errors.New(res[1])
+			if ee := extractErr(stderr.String()); ee != nil {
+				err = ee
 			}
 		}
 	}
 	return stdout.String(), stderr.String(), err
+}
+
+func extractErr(stderr string) error {
+	if res := reErrorMessage.FindStringSubmatch(stderr); res != nil {
+		return errors.New(res[1])
+	}
+	return nil
 }
 
 func LogMessage(format string, args ...interface{}) {
