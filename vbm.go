@@ -3,6 +3,7 @@ package virtualbox
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -13,8 +14,11 @@ import (
 )
 
 var (
-	VBM     string // Path to VBoxManage utility.
-	Verbose bool   // Verbose mode.
+	VBM     string           // Path to VBoxManage utility.
+	Verbose bool             // Verbose mode.
+	Log     func(msg string) // function to be used for logging
+	LogOut  func(msg string) // function to be used for logging stdout
+	LogErr  func(msg string) // function to be used for logging stderr
 )
 
 func init() {
@@ -38,51 +42,67 @@ var (
 )
 
 func vbm(args ...string) error {
-	cmd := exec.Command(VBM, args...)
-	if Verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		log.Printf("executing: %v %v", VBM, strings.Join(args, " "))
-	}
-	if err := cmd.Run(); err != nil {
-		if ee, ok := err.(*exec.Error); ok && ee == exec.ErrNotFound {
-			return ErrVBMNotFound
-		}
-		return err
-	}
-	return nil
+	_, _, err := vbmOutErr(args...)
+	return err
 }
 
 func vbmOut(args ...string) (string, error) {
-	cmd := exec.Command(VBM, args...)
-	if Verbose {
-		cmd.Stderr = os.Stderr
-		log.Printf("executing: %v %v", VBM, strings.Join(args, " "))
-	}
-
-	b, err := cmd.Output()
-	if err != nil {
-		if ee, ok := err.(*exec.Error); ok && ee == exec.ErrNotFound {
-			err = ErrVBMNotFound
-		}
-	}
-	return string(b), err
+	out, _, err := vbmOutErr(args...)
+	return out, err
 }
 
 func vbmOutErr(args ...string) (string, string, error) {
 	cmd := exec.Command(VBM, args...)
-	if Verbose {
-		log.Printf("executing: %v %v", VBM, strings.Join(args, " "))
-	}
+	LogMessage("executing: %v %v", VBM, strings.Join(args, " "))
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
+		LogMessage("Error: %s", err)
+	}
+	logOut(stdout.String())
+	logErr(stderr.String())
+	if err != nil {
 		if ee, ok := err.(*exec.Error); ok && ee == exec.ErrNotFound {
 			err = ErrVBMNotFound
 		}
 	}
 	return stdout.String(), stderr.String(), err
+}
+
+func LogMessage(format string, args ...interface{}) {
+	switch {
+	case Log != nil:
+		Log(fmt.Sprintf(format, args...))
+	case Verbose:
+		log.Printf(format, args...)
+	}
+}
+
+func logOut(msg string) {
+	switch {
+	case msg == "":
+		return
+	case LogOut != nil:
+		LogOut(msg)
+	case Log != nil:
+		Log("StdOut: " + msg)
+	case Verbose:
+		os.Stdout.WriteString(msg)
+	}
+}
+
+func logErr(msg string) {
+	switch {
+	case msg == "":
+		return
+	case LogOut != nil:
+		LogOut(msg)
+	case Log != nil:
+		Log("StdErr: " + msg)
+	case Verbose:
+		os.Stderr.WriteString(msg)
+	}
 }
