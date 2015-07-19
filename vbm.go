@@ -33,7 +33,7 @@ var (
 	reVMInfoLine      = regexp.MustCompile(`(?:"(.+)"|(.+))=(?:"(.*)"|(.*))`)
 	reColonLine       = regexp.MustCompile(`(.+):\s+(.*)`)
 	reMachineNotFound = regexp.MustCompile(`Could not find a registered machine named '(.+)'`)
-	reErrorMessage    = regexp.MustCompile(`VBoxManage: error: (.*)`)
+	reErrorMessage    = regexp.MustCompile(`VBoxManage.*: error: (.*)`)
 )
 
 var (
