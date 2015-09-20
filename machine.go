@@ -2,6 +2,7 @@ package virtualbox
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -311,6 +312,12 @@ func CreateMachine(name, basefolder string) (*Machine, error) {
 
 // Modify changes the settings of the machine.
 func (m *Machine) Modify() error {
+	// it seems that virtualbox 5.0 does not support the flag
+	// As long as we don't really need it we just ignore it
+	// TODO: check for virtualbox version
+	if m.Flag&F_synthcpu != 0 {
+		return errors.New("sythcpu flag not supported")
+	}
 	args := []string{"modifyvm", m.Name,
 		"--firmware", "bios",
 		"--bioslogofadein", "off",
@@ -329,7 +336,7 @@ func (m *Machine) Modify() error {
 		"--cpuhotplug", m.Flag.Get(F_cpuhotplug),
 		"--pae", m.Flag.Get(F_pae),
 		"--longmode", m.Flag.Get(F_longmode),
-		"--synthcpu", m.Flag.Get(F_synthcpu),
+		// "--synthcpu", m.Flag.Get(F_synthcpu),
 		"--hpet", m.Flag.Get(F_hpet),
 		"--hwvirtex", m.Flag.Get(F_hwvirtex),
 		"--triplefaultreset", m.Flag.Get(F_triplefaultreset),
@@ -354,13 +361,26 @@ func (m *Machine) Modify() error {
 
 // AddNATPF adds a NAT port forarding rule to the n-th NIC with the given name.
 func (m *Machine) AddNATPF(n int, name string, rule PFRule) error {
-	return vbm("controlvm", m.Name, fmt.Sprintf("natpf%d", n),
-		fmt.Sprintf("%s,%s", name, rule.Format()))
+	return m.natPF(n, fmt.Sprintf("%s,%s", name, rule.Format()))
 }
 
 // DelNATPF deletes the NAT port forwarding rule with the given name from the n-th NIC.
 func (m *Machine) DelNATPF(n int, name string) error {
-	return vbm("controlvm", m.Name, fmt.Sprintf("natpf%d", n), "delete", name)
+	return m.natPF(n, "delete", name)
+}
+
+func (m *Machine) natPF(n int, args ...string) error {
+	vargs := make([]string, len(args)+3)
+	if m.State == Poweroff || m.State == Aborted {
+		vargs[0] = "modifyvm"
+		vargs[2] = fmt.Sprintf("--natpf%d", n)
+	} else {
+		vargs[0] = "controlvm"
+		vargs[2] = fmt.Sprintf("natpf%d", n)
+	}
+	vargs[1] = m.Name
+	copy(vargs[3:], args)
+	return vbm(vargs...)
 }
 
 // SetNIC set the n-th NIC.
