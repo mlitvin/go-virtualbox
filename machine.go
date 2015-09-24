@@ -15,6 +15,7 @@ type MachineState string
 const (
 	Poweroff = MachineState("poweroff")
 	Running  = MachineState("running")
+	Stopping = MachineState("stoping")
 	Paused   = MachineState("paused")
 	Saved    = MachineState("saved")
 	Aborted  = MachineState("aborted")
@@ -130,8 +131,22 @@ func (m *Machine) Stop() error {
 	}
 
 	for m.State != Poweroff { // busy wait until the machine is stopped
-		if err := vbm("controlvm", m.Name, "acpipowerbutton"); err != nil {
-			return err
+		if m.State != Stopping {
+			if err := vbm("controlvm", m.Name, "acpipowerbutton"); err != nil {
+				if strings.Contains(err.Error(), "Invalid machine state") {
+					// This could be a transient error because the state changed
+					old := m.State
+					time.Sleep(1 * time.Second)
+					if err := m.Refresh(); err != nil {
+						return err
+					}
+					if m.State != old {
+						// We got an error when we tried before, but now the state change, let's try again (no need to sleep and get state again)
+						continue
+					}
+				}
+				return err
+			}
 		}
 		time.Sleep(1 * time.Second)
 		if err := m.Refresh(); err != nil {
