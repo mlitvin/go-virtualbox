@@ -267,12 +267,14 @@ func GetMachine(id string) (*Machine, error) {
 }
 
 // ListMachines lists all registered machines.
-func ListMachines() ([]*Machine, error) {
+// The warning list is VMs we couldn't get (it happen with virtual box...)
+func ListMachines() ([]*Machine, []error, error) {
 	out, err := vbmOut("list", "vms")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ms := []*Machine{}
+	warnings := []error{}
 	s := bufio.NewScanner(strings.NewReader(out))
 	for s.Scan() {
 		res := reVMNameUUID.FindStringSubmatch(s.Text())
@@ -281,14 +283,15 @@ func ListMachines() ([]*Machine, error) {
 		}
 		m, err := GetMachine(res[1])
 		if err != nil {
-			return nil, err
+			warnings = append(warnings, err)
+		} else {
+			ms = append(ms, m)
 		}
-		ms = append(ms, m)
 	}
 	if err := s.Err(); err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
-	return ms, nil
+	return ms, warnings, nil
 }
 
 // CreateMachine creates a new machine. If basefolder is empty, use default.
@@ -298,7 +301,7 @@ func CreateMachine(name, basefolder string) (*Machine, error) {
 	}
 
 	// Check if a machine with the given name already exists.
-	ms, err := ListMachines()
+	ms, _, err := ListMachines()
 	if err != nil {
 		return nil, err
 	}
